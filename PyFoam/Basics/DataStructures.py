@@ -365,6 +365,7 @@ class DictProxy(dict):
         if isRegex:
             exp=re.compile(key[1:-1])
             self._regex=[(key,exp,value)]+self._regex
+            dict.__setitem__(self,key,value)
         else:
             dict.__setitem__(self,key,value)
         if key not in self._order or isRegex:
