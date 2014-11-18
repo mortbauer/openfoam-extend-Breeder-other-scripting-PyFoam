@@ -1,4 +1,4 @@
-#  ICE Revision: $Id$ 
+#  ICE Revision: $Id$
 """Base class for all parser classes based on PLY
 
 Most of this class was shamelessly stolen from the examples"""
@@ -25,6 +25,7 @@ class PlyParser(object):
     def __init__(self, **kw):
         """Constructs the parser and the lexer"""
         self.debug = kw.get('debug', 2)
+        self.write_tables = kw.get('write_tables', True)
         self.names = { }
         try:
             modname = os.path.split(os.path.splitext(__file__)[0])[1] + "_" + self.__class__.__name__
@@ -40,10 +41,11 @@ class PlyParser(object):
                   debug=self.debug,
                   debugfile=self.debugfile,
                   tabmodule=self.tabmodule,
-                  check_recursion=self.debug)
+                  check_recursion=self.debug,
+                  write_tables=self.write_tables)
         self.lex=lex
         self.yacc=yacc
-        
+
     def parse(self,content):
         """Do the actual parsing
         @param content: String that is to be parsed
@@ -53,6 +55,6 @@ class PlyParser(object):
             debug=10
         else:
             debug=0
-            
+
         return yacc.parse(content,debug=debug)
 

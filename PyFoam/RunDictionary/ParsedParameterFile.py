@@ -229,6 +229,7 @@ class FoamFileParser(PlyParser):
                  duplicateCheck=False,
                  noVectorOrTensor=False,
                  dictStack=None,
+                 write_tables=True,
                  duplicateFail=True):
         """@param content: the string to be parsed
         @param fName: Name of the actual file (if any)
@@ -293,7 +294,7 @@ class FoamFileParser(PlyParser):
         if startCnt>1:
             error("Only one start symbol can be specified.",startCnt,"are specified")
 
-        PlyParser.__init__(self,debug=debug)
+        PlyParser.__init__(self,write_tables=write_tables,debug=debug)
 
         #sys.setrecursionlimit(50000)
         #print sys.getrecursionlimit()
@@ -1142,7 +1143,8 @@ class FoamStringParser(FoamFileParser):
                  duplicateCheck=False,
                  listDict=False,
                  doMacroExpansion=False,
-                 duplicateFail=False):
+                 duplicateFail=False,
+                 write_tables=False):
         """@param content: the string to be parsed
         @param debug: output debug information during parsing"""
 
