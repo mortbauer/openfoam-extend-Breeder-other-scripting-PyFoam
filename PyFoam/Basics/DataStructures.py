@@ -322,6 +322,20 @@ class BoolProxy(object):
         else:
             raise TypeError("Can't compare BoolProxy with "+str(type(o)))
 
+    def __ne__(self,o):
+        if type(o) in [bool,BoolProxy]:
+            return self.val!=o
+        elif isinstance(o,string_types):
+            if self.textual!=o:
+                return True
+            else:
+                try:
+                    return self.val!=BoolProxy(textual=o)
+                except TypeError:
+                    return False
+        else:
+            raise TypeError("Can't compare BoolProxy with "+str(type(o)))
+
 class DictRedirection(object):
     """This class is in charge of handling redirections to other directories"""
     def __init__(self,fullCopy,reference,name):
