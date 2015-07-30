@@ -1,6 +1,8 @@
 #  ICE Revision: $Id$
 """Transform a Python data-structure into a OpenFOAM-File-Representation"""
 
+from collections import OrderedDict
+
 from PyFoam.Error import error,PyFoamException
 from PyFoam.Basics.DataStructures import Vector,Field,Dimension,TupleProxy,DictProxy,Tensor,SymmTensor,Unparsed,UnparsedList,Codestream,DictRedirection,BinaryList,BoolProxy
 
@@ -96,7 +98,6 @@ class FoamFileGenerator(object):
             order=dic._order
         else:
             order=list(dic.keys())
-            order.sort()
 
         for k in order:
             if type(k)==DictRedirection:
@@ -121,7 +122,7 @@ class FoamFileGenerator(object):
                 s+=v
                 continue
 
-            if str(k).find("anonymValue")==0:
+            if str(k).find("anonymValue")==2:
                 k=""
 
             s+=(" "*indent)+str(k)
@@ -133,7 +134,7 @@ class FoamFileGenerator(object):
                     s+=";"+end
                 else:
                     s+=" "+self.__quoteString(v)+";"+end
-            elif type(v) in [dict,DictProxy]:
+            elif type(v) in [dict,DictProxy,OrderedDict]:
                 s+="\n"+(" "*indent)+"{\n"
                 s+=self.strDict(v,indent+2)
                 s+=(" "*indent)+"}"+end
@@ -245,3 +246,4 @@ class FoamFileGeneratorError(PyFoamException):
         PyFoamException.__init__(self,descr)
 
 # Should work with Python3 and Python2
+#  vim: set ft=python ts=4 sw=4 tw=79 :
