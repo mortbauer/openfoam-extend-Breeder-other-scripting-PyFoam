@@ -36,6 +36,7 @@ class ParsedParameterFile(FileBasisBackup):
                  dontRead=False,
                  noVectorOrTensor=False,
                  dictStack=None,
+                 write_tables=False,
                  createZipped=True,
                  longListOutputThreshold=20):
         """@param name: The name of the parameter file
@@ -80,6 +81,7 @@ class ParsedParameterFile(FileBasisBackup):
         self.treatBinaryAsASCII=treatBinaryAsASCII
         self.lastDecoration=""
         self.dictStack=dictStack
+        self.write_tables = write_tables
 
         if not dontRead:
             self.readFile()
@@ -96,6 +98,7 @@ class ParsedParameterFile(FileBasisBackup):
                                   listLengthUnparsed=self.listLengthUnparsed,
                                   noHeader=self.noHeader,
                                   noBody=self.noBody,
+                                  write_tables=self.write_tables,
                                   preserveComments=self.preserveComments,
                                   binaryMode=self.binaryMode,
                                   treatBinaryAsASCII=self.treatBinaryAsASCII,
@@ -115,6 +118,7 @@ class ParsedParameterFile(FileBasisBackup):
                                       listLengthUnparsed=self.listLengthUnparsed,
                                       noHeader=self.noHeader,
                                       noBody=self.noBody,
+                                      write_tables=self.write_tables,
                                       preserveComments=self.preserveComments,
                                       binaryMode=self.binaryMode,
                                       treatBinaryAsASCII=True,
