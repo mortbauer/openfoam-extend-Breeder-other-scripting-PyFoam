@@ -53,25 +53,58 @@ class RegExpLineAnalyzer(GeneralLineAnalyzer):
         self.name=name
         self.idNr=idNr
 
+        self.multiLine=False
+        self.linesToMatch=None
+
         exp=exp.replace("%f%",self.floatRegExp)
 
         self.strExp=exp
-        self.exp=re.compile(self.strExp)
+        reFlags=0
+
+        if self.strExp.find(r"\n")>-1:
+            self.multiLine=True
+            from collections import deque
+
+            self.linesToMatch=deque([],maxlen=1+self.strExp.count(r'\n'))
+            reFlags=re.MULTILINE
+
+        self.exp=re.compile(self.strExp,reFlags)
 
         self.data={}
+
+    def stringToMatch(self,line):
+        """Returns string to match. To be overriden for multi-line expressions"""
+        if self.multiLine:
+            self.linesToMatch.append(line)
+
+            return "\n".join(self.linesToMatch)
+        else:
+            return line.strip()
 
     def startAnalysis(self,match):
         self.tm=self.parent.getTime()
         if self.tm=="":
             self.tm="-1e10"
 
+    def makeID(self,match):
+        if isinstance(self.idNr,(int,)):
+            return match.group(self.idNr)
+        else:
+            return "_".join(match.group(i) for i in self.idNr)
+
+    def filterIdFromData(self,fdata):
+        if isinstance(self.idNr,(int,)):
+            return fdata[:self.idNr-1]+fdata[self.idNr:]
+        else:
+            return [fdata[i] for i in range(len(fdata)) if i+1 not in self.idNr]
+
     def addToFiles(self,match):
         name=self.fName(self.name)
         fdata=match.groups()
         if self.idNr!=None:
-            ID=match.group(self.idNr)
+            ID=self.makeID(match)
             name+="_"+ID
-            fdata=fdata[:self.idNr-1]+fdata[self.idNr:]
+            fdata=self.filterIdFromData(fdata)
         else:
             ID=""
 
@@ -87,9 +120,9 @@ class RegExpLineAnalyzer(GeneralLineAnalyzer):
 
         prefix=""
         if self.idNr!=None:
-            ID=match.group(self.idNr)
+            ID=self.makeID(match)
             prefix=ID+"_"
-            fdata=fdata[:self.idNr-1]+fdata[self.idNr:]
+            fdata=self.filterIdFromData(fdata)
 
         for i in range(len(fdata)):
             val=float(fdata[i])

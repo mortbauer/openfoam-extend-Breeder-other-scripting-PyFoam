@@ -4,11 +4,11 @@ Application-class that implements pyFoamListCases.py
 from optparse import OptionGroup
 from os import path,listdir,stat
 from glob import glob
+from fnmatch import fnmatch
 from PyFoam.ThirdParty.six.moves import cPickle as pickle
 from PyFoam.ThirdParty.six import string_types
 import time,datetime
 from stat import ST_MTIME
-import subprocess
 import re
 import os
 
@@ -21,7 +21,7 @@ from PyFoam import configuration
 
 from PyFoam.ThirdParty.six import print_,iteritems,PY3
 
-from PyFoam.Basics.Utilities import humanReadableSize
+from PyFoam.Basics.Utilities import humanReadableSize,diskUsage
 
 if PY3:
     long=int
@@ -76,6 +76,12 @@ etc). Currently doesn't honor the parallel data
                         dest="state",
                         default=True,
                         help="Don't read state-files")
+
+        what.add_option("--no-hostname",
+                        action="store_false",
+                        dest="hostname",
+                        default=True,
+                        help="Don't look up the hostname in the pickled data")
 
         what.add_option("--advanced-state",
                         action="store_true",
@@ -141,6 +147,53 @@ etc). Currently doesn't honor the parallel data
                           default=False,
                           help="Print the directories while they are being processed")
 
+        select=OptionGroup(self.parser,
+                           "Selection",
+                           "Select which cases should be shown. First the select-patterns are applied then the ignore patterns. If no select-patterns are specified then all cases are processed")
+        self.parser.add_option_group(select)
+
+        select.add_option("--substring-select",
+                          action="append",
+                          dest="substringSelect",
+                          default=[],
+                          help="Substrings that should be in the case-name. Can be specified more than once")
+        select.add_option("--ignore-substring",
+                          action="append",
+                          dest="substringIgnore",
+                          default=[],
+                          help="Substrings that should not be in the case-name. Can be specified more than once")
+        select.add_option("--glob-select",
+                          action="append",
+                          dest="globSelect",
+                          default=[],
+                          help="Glob-pattern that the case-name should match. Can be specified more than once")
+        select.add_option("--no-glob-select",
+                          action="append",
+                          dest="globIgnore",
+                          default=[],
+                          help="Glob-pattern that the case-name should not match. Can be specified more than once")
+
+    def fnmatch(self,fName):
+        """Check whether the filename matches our patterns for for cases to be processed"""
+        select=["*"+s+"*" for s in self.opts.substringSelect]+self.opts.globSelect
+        ignore=["*"+s+"*" for s in self.opts.substringIgnore]+self.opts.globIgnore
+        if len(select)>0:
+            matches=False
+            for s in select:
+                if fnmatch(fName,s):
+                    matches=True
+                    break
+        else:
+            matches=True
+        if not matches:
+            return False
+
+        for i in ignore:
+            if fnmatch(fName,i):
+                return False
+
+        return True
+
     def readState(self,sol,sFile,default=""):
         fName=path.join(sol.name,"PyFoamState."+sFile)
         if not path.exists(fName):
@@ -176,9 +229,13 @@ etc). Currently doesn't honor the parallel data
         if len(customData)>0 and not self.opts.solverNameForCustom:
             self.warning("Parameter '--solver-name-for-custom-data' should be set if '--custom-data' is used")
             useSolverInData=True
+        elif  self.opts.hostname:
+            useSolverInData=True
 
         for d in dirs:
             for n in listdir(d):
+                if not self.fnmatch(n):
+                    continue
                 cName=path.join(d,n)
                 if path.isdir(cName):
                     try:
@@ -213,21 +270,7 @@ etc). Currently doesn't honor the parallel data
                             data["name"]=cName
                             data["diskusage"]=-1
                             if self.opts.diskusage:
-                                try:
-                                    data["diskusage"]=int(
-                                        subprocess.Popen(
-                                            ["du","-sb",cName],
-                                            stdout=subprocess.PIPE,
-                                            stderr=open(os.devnull,"w")
-                                        ).communicate()[0].split()[0])
-                                except IndexError:
-                                    # assume that this du does not support -b
-                                    data["diskusage"]=int(
-                                        subprocess.Popen(
-                                            ["du","-sk",cName],
-                                            stdout=subprocess.PIPE
-                                        ).communicate()[0].split()[0])*1024
-
+                                data["diskusage"]=diskUsage(cName)
                                 totalDiskusage+=data["diskusage"]
                             if self.opts.parallel:
                                 for f in listdir(cName):
@@ -258,10 +301,16 @@ etc). Currently doesn't honor the parallel data
                                     ctrlDict=ParsedParameterFile(sol.controlDict(),doMacroExpansion=True)
                                 except PyFoamParserError:
                                     # Didn't work with Macro expansion. Let's try without
-                                    ctrlDict=ParsedParameterFile(sol.controlDict())
-
-                                data["startTime"]=ctrlDict["startTime"]
-                                data["endTime"]=ctrlDict["endTime"]
+                                    try:
+                                        ctrlDict=ParsedParameterFile(sol.controlDict())
+                                    except PyFoamParserError:
+                                        ctrlDict=None
+                                if ctrlDict:
+                                    data["startTime"]=ctrlDict["startTime"]
+                                    data["endTime"]=ctrlDict["endTime"]
+                                else:
+                                    data["startTime"]=None
+                                    data["endTime"]=None
 
                             if self.opts.estimateEndTime:
                                 data["endTimeEstimate"]=None
@@ -275,8 +324,9 @@ etc). Currently doesn't honor the parallel data
                                     if frac>0:
                                         data["endTimeEstimate"]=data["startedAt"]+gone/frac
 
-                            if len(customData)>0:
+                            if len(customData)>0 or self.opts.hostname:
                                 fn=None
+                                pickleFile=None
                                 if useSolverInData:
                                     data["solver"]="none found"
                                     # try to find the oldest pickled file
@@ -291,7 +341,7 @@ etc). Currently doesn't honor the parallel data
                                                 solverName=None
                                             if path.exists(pName):
                                                 dirAndTime.append((path.getmtime(pName),solverName,pName))
-                                        dirAndTime.sort(cmp=lambda x,y:cmp(x[0],y[0]))
+                                        dirAndTime.sort(key=lambda x:x[0])
                                         if len(dirAndTime)>0:
                                             data["solver"]=dirAndTime[-1][1]
                                             pickleFile=dirAndTime[-1][2]
@@ -300,7 +350,6 @@ etc). Currently doesn't honor the parallel data
                                     solverName=data["solver"]
                                 else:
                                     solverName=self.opts.solverNameForCustom
-                                    pickleFile=None
 
                                 if pickleFile:
                                     fn=pickleFile
@@ -311,7 +360,7 @@ etc). Currently doesn't honor the parallel data
                                             fn=fp
                                             break
                                 if fn:
-                                    raw=pickle.Unpickler(open(fn)).load()
+                                    raw=pickle.Unpickler(open(fn,"rb")).load()
                                     for n,spec in customData:
                                         dt=raw
                                         for k in spec:
@@ -323,10 +372,16 @@ etc). Currently doesn't honor the parallel data
                                             if isinstance(dt,string_types):
                                                 break
                                         data[n]=dt
+                                    if self.opts.hostname:
+                                        try:
+                                            data["hostname"]=raw["hostname"].split(".")[0]
+                                        except KeyError:
+                                            data["hostname"]="<unspecified>"
                                 else:
                                     for n,spec in customData:
-                                        data[n]="no file"
-
+                                        data[n]="<no file>"
+                                    if self.opts.hostname:
+                                        data["hostname"]="<no file>"
                             cData.append(data)
                     except OSError:
                         print_(cName,"is unreadable")
@@ -334,10 +389,8 @@ etc). Currently doesn't honor the parallel data
         if self.opts.progress:
             print_("Sorting data")
 
-        if self.opts.reverse:
-            cData.sort(lambda x,y:cmp(y[self.opts.sort],x[self.opts.sort]))
-        else:
-            cData.sort(lambda x,y:cmp(x[self.opts.sort],y[self.opts.sort]))
+
+        cData.sort(key=lambda x:x[self.opts.sort],reverse=self.opts.reverse)
 
         if len(cData)==0:
             print_("No cases found")
@@ -372,7 +425,10 @@ etc). Currently doesn't honor the parallel data
                 lens[k]=max(lens[k],len(str(v)))
 
         format=""
-        spec=["mtime"," | ","first"," - ","last"," (","nrSteps",") "]
+        spec=["mtime"," | "]
+        if self.opts.hostname:
+            spec+=["hostname"," | "]
+        spec+=["first"," - ","last"," (","nrSteps",") "]
         if self.opts.parallel:
             spec+=["| ","procs"," : ","pFirst"," - ","pLast"," (","nrParallel",") | "]
         if self.opts.diskusage:

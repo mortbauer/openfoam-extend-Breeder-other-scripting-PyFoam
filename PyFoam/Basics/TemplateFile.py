@@ -9,7 +9,7 @@ from PyFoam.ThirdParty.pyratemp import Template as PyratempTemplate
 from PyFoam.ThirdParty.pyratemp import EvalPseudoSandbox,TemplateRenderError
 from PyFoam.ThirdParty.pyratemp import Renderer as PyratempRenderer
 
-from PyFoam.ThirdParty.six import iteritems,exec_,print_
+from PyFoam.ThirdParty.six import iteritems,exec_,print_,PY3
 
 class RendererWithFilename(PyratempRenderer):
      """Usual renderer but report a filename"""
@@ -62,6 +62,7 @@ class PyratempPreprocessor(object):
                  expressionDelimiter="$",
                  assignmentLineStart="$$",
                  allowExec=False,
+                 assignmentDebug=None,
                  specials=[]):
         """Create the regexp once for performance reasons
         @param dovarline: look for variable lines that start with $$
@@ -69,6 +70,7 @@ class PyratempPreprocessor(object):
         @param expressionDelimiter: character/string that is used before and after an
         expression. After the expression the reverse of the string is used
         @param assignmentLineStart: character sequence that signals an assignment line
+        @param assignmentDebug: Add a commented line to debug assignments. Prefix used is this parameter
         @param allowExec: allows execution of code. This is potentially unsafe
         @param specials: a list. If any expression starts with one of these values then
         the full expression (including delimiters) is left verbatim in the template"""
@@ -81,10 +83,13 @@ class PyratempPreprocessor(object):
 
         self.expressionDelimiter=re.escape(expressionDelimiter)
         self.expressionDelimiterEnd=re.escape("".join(tmp))
+        self.expressionDelimiterRaw=expressionDelimiter
+        self.expressionDelimiterEndRaw="".join(tmp)
 
         #        print self.expressionDelimiter,self.expressionDelimiterEnd
 
         self.assignmentLineStart=assignmentLineStart
+        self.assignmentDebug=assignmentDebug
 
         self.expr=re.compile("%s[^$!\n]+?%s" % (self.expressionDelimiter,self.expressionDelimiterEnd))
         self.dovarline=dovarline
@@ -104,10 +109,14 @@ class PyratempPreprocessor(object):
 
         result=""
 
+        def isVarname(name):
+            return re.match("[_A-Za-z][_A-Za-z0-9]*$",name.strip())!=None
+
         for l in lines:
+            skipLine=False
             if l[:len(self.assignmentLineStart)]==self.assignmentLineStart and self.dovarline:
                 tmp=l[len(self.assignmentLineStart):].split("=")
-                if len(tmp)!=2:
+                if len(tmp)!=2 or not isVarname(tmp[0]):
                     if self.allowExec:
                         execString=l[len(self.assignmentLineStart):].replace("\\","\\\\").replace("\"","\\\"")
                         result+='$!setvar("%s", "%s")!$#!' % (
@@ -115,15 +124,20 @@ class PyratempPreprocessor(object):
                             execIdString+execString.strip()
                         )
                         result+="\n"
+                        skipLine=True
                     else:
                         error("Each definition must be of the form: <name>=<value>",
-                              "The string",l,"is not")
+                              "The string",l,"is not. Try running the utility with the option --allow-exec-instead-of-assignment")
                 else:
                     #                if tmp[1].find('"')>=0:
                     #                   error("There is a \" in",tmp[1],"\npyratemp can't cope with that'")
                     exprStr=tmp[1].replace("\\","\\\\").replace("\"","\\\"")
                     result+='$!setvar("%s", "%s")!$#!' % (tmp[0].strip(),exprStr.strip())
                     result+="\n"
+                    if self.assignmentDebug and self.doexpr:
+                         l=self.assignmentDebug+" "+tmp[0].strip()+" "+self.expressionDelimiterRaw+tmp[0].strip()+self.expressionDelimiterEndRaw
+                    else:
+                         continue
             elif self.doexpr:
                 nl=""
                 iStart=0
@@ -148,7 +162,8 @@ class PyratempPreprocessor(object):
                     iStart=m.end()
                 result+=nl+l[iStart:]+"\n"
             else:
-                result+=l+"\n"
+                if not skipLine:
+                    result+=l+"\n"
 
         # remove trailing newline if the original had none
         if original[-1]!='\n' and result[-1]=='\n':
@@ -214,7 +229,7 @@ class TemplateFileOldFormat(object):
             symbols[n]="("+str(e)+")"
 
         keys=list(symbols.keys())
-        #        keys.sort(lambda x,y:cmp(len(y),len(x)))
+
         keys.sort(key=len,reverse=True)
 
         input=self.template[:]
@@ -304,12 +319,14 @@ class EvalPseudoSandboxWithMath(EvalPseudoSandbox):
 
         if doEval:
             globals= {"__builtins__":self.eval_allowed_globals}
+            if PY3:
+                 globals.update(locals)
             x = eval(self.compile(expr),globals, locals)
         else:
             #            globals= {"__builtins__":self.eval_allowed_globals}
             globals= {"__builtins__":__builtins__}
             expr=expr[len(execIdString):]
-            exec_(self.compile(expr,mode="exec"),globs=globals,locs=locals)
+            exec_(self.compile(expr,mode="exec"),globals,locals)
             x = None
         self.locals_ptr = sav
         return x
@@ -329,6 +346,7 @@ class TemplateFile(TemplateFileOldFormat):
                  encoding="utf-8",
                  expressionDelimiter="|",
                  assignmentLineStart="$$",
+                 assignmentDebug=None,
                  specials=[],
                  renderer_class=None,
                  tolerantRender=False,
@@ -339,11 +357,13 @@ class TemplateFile(TemplateFileOldFormat):
         @param content: Content of the template
         @param expressionDelimiter: character/string that delimits expression strings.
         @param assignmentLineStart: Start of a line that holds an assignment operation
+        @param assignmentDebug: Add a commented line to debug assignments. Prefix used is this parameter
         @param allowExec: allow execution  (and import). This is potentially unsafe
         @param special: list with strings that leave expression untreated"""
 
         self.expressionDelimiter=expressionDelimiter
         self.assignmentLineStart=assignmentLineStart
+        self.assignmentDebug=assignmentDebug
         self.specials=specials
         self.allowExec=allowExec
 
@@ -384,6 +404,7 @@ class TemplateFile(TemplateFileOldFormat):
     def buildTemplate(self,template):
         self.template=PyratempPreprocessor(assignmentLineStart=self.assignmentLineStart,
                                            expressionDelimiter=self.expressionDelimiter,
+                                           assignmentDebug=self.assignmentDebug,
                                            specials=self.specials,
                                            allowExec=self.allowExec
                                        )(template)

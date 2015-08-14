@@ -121,21 +121,29 @@ class GeneralLineAnalyzer(LogLineAnalyzer):
         else:
             return [],[]
 
+    def stringToMatch(self,line):
+        """Returns string to match. To be overriden for multi-line expressions"""
+        return line.strip()
+
     def doAnalysis(self,line):
         """General analysis method. Derived classes should instead override callbacks"""
 
-        m=self.exp.match(line)
+        m=self.exp.match(self.stringToMatch(line))
         if m!=None:
             self.startAnalysis(m)
 
             if self.doTimelines:
                 try:
                     time=float(self.getTime())
-                    if (self.startTime==None or time>=self.startTime) and (self.endTime==None or time<=self.endTime):
-                        self.addToTimelines(m)
+                    try:
+                        if (self.startTime==None or time>=self.startTime) and (self.endTime==None or time<=self.endTime):
+                            self.addToTimelines(m)
+                    except ValueError:
+                        e = sys.exc_info()[1] # Needed because python 2.5 does not support 'as e'
+                        warning("Problem doing timelines",e)
                 except ValueError:
-                    e = sys.exc_info()[1] # Needed because python 2.5 does not support 'as e'
-                    warning("Problem doing timelines",e)
+                    # no valid time information yet
+                    pass
 
             if self.doFiles:
                 self.addToFiles(m)

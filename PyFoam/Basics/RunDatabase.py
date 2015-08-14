@@ -48,7 +48,8 @@ class RunDatabase(object):
             db.row_factory=sqlite3.Row
             cursor=db.cursor()
             cursor.execute("CREATE TABLE theRuns(runId INTEGER PRIMARY KEY, "+
-                           "insertionTime TIMESTAMP)")
+                           self.__normalize("insertionTime")+" TIMESTAMP)")
+            cursor.close()
 
     def add(self,data):
         """Add a dictionary with data to the database"""
@@ -65,6 +66,64 @@ class RunDatabase(object):
                                    [("runId",runID)]))
 
         self.db.commit()
+
+    specialChars={
+        '[':'bro',
+        ']':'brc',
+        '{':'cro',
+        '}':'crc',
+        '(':'pro',
+        ')':'prc',
+        '|':'pip',
+    }
+
+    specialString="_specialChar"
+
+    def __normalize(self,s):
+        """Normalize a column-name so that the case-insensitve column-names of SQlite
+        are no problem"""
+
+        if s in ["runId","dataId"]:
+            return s
+        result=""
+        for c in s:
+            if c.isupper() or c=="_":
+                result+="_"+c.lower()
+            elif c in RunDatabase.specialChars:
+                result+=RunDatabase.specialString+RunDatabase.specialChars[c]
+            else:
+                result+=c
+        return result
+
+    def __denormalize(self,s):
+        """Denormalize the column name that was normalized by _normalize"""
+
+        while s.find(RunDatabase.specialString)>=0:
+            pre,post=s.split(RunDatabase.specialString,maxsplit=1)
+            spec=post[0:3]
+            for k,v in iteritems(RunDatabase.specialChars):
+                if spec==v:
+                    s=pre+k+post[3:]
+                    break
+            else:
+                error("No special character for encoding",spec,"found")
+
+        result=""
+        underFound=False
+
+        for c in s:
+            if underFound:
+                underFound=False
+                result+=c.upper()
+            elif c=="_":
+                underFound=True
+            else:
+                result+=c
+
+        if underFound:
+            error("String",s,"was not correctly encoded")
+
+        return result
 
     def __addContent(self,table,data):
         cursor=self.db.cursor()
@@ -85,7 +144,7 @@ class RunDatabase(object):
                 addData.append(None)
         addData=tuple(addData)
         cSQL = "insert into "+table+" ("+ \
-               ",".join(['"'+c+'"' for c in cols])+ \
+               ",".join(['"'+self.__normalize(c)+'"' for c in cols])+ \
                ") values ("+",".join(["?"]*len(addData))+")"
         if self.verbose:
             print_("Execute SQL",cSQL,"with",addData)
@@ -97,7 +156,10 @@ class RunDatabase(object):
             print_("AddData:",addData)
             raise e
 
-        return cursor.lastrowid
+        lastrow=cursor.lastrowid
+        cursor.close()
+
+        return lastrow
 
     def __adaptDatabase(self,data):
         """Make sure that all the required columns and tables are there"""
@@ -129,7 +191,14 @@ class RunDatabase(object):
 
     def __getColumns(self,tablename):
         c=self.db.execute('SELECT * from '+tablename)
-        return [desc[0] for desc in c.description]
+        result=[]
+        for desc in c.description:
+            if desc[0] in ['dataId','runId']:
+                result.append(desc[0])
+            else:
+                result.append(self.__denormalize(desc[0]))
+
+        return result
 
     def __addColumnsToTable(self,table,data):
         columns=self.__getColumns(table)
@@ -137,13 +206,14 @@ class RunDatabase(object):
         for k,v in iteritems(data):
             if k not in columns:
                 if self.verbose:
-                    print_("Adding:",k,"to",table)
+                    print_("Adding:",k,"to",table,"(normalized:",
+                           self.__normalize(k),")")
                 if isinstance(v,integer_types+(float,)):
                     self.db.execute('ALTER TABLE "%s" ADD COLUMN "%s" REAL' %
-                                    (table,k))
+                                    (table,self.__normalize(k)))
                 else:
                     self.db.execute('ALTER TABLE "%s" ADD COLUMN "%s" TEXT' %
-                                    (table,k))
+                                    (table,self.__normalize(k)))
 
     def dumpToCSV(self,
                   fname,
@@ -178,7 +248,7 @@ class RunDatabase(object):
                 if disableRunData:
                     for e in disableRunData:
                         exp=re.compile(e)
-                        if exp.search(k):
+                        if not exp.search(self.__denormalize(k)) is None:
                             writeEntry=False
                             break
                     if writeEntry:
@@ -187,8 +257,9 @@ class RunDatabase(object):
                         disabledStandard.add(k)
             for t in tables:
                 if t=="theRuns":
-                    continue
-                namePrefix=t[:-4]
+                    namePrefix="runInfo"
+                else:
+                    namePrefix=t[:-4]
                 dataCursor=self.db.cursor()
                 dataCursor.execute("SELECT * FROM "+t+" WHERE runId=?",
                                    (str(id),))
@@ -201,7 +272,9 @@ class RunDatabase(object):
                 for k in list(data[0].keys()):
                     if k in ["dataId","runId"]:
                         continue
-                    name=namePrefix+self.separator+k
+                    if k in disabledStandard:
+                        continue
+                    name=namePrefix+self.separator+self.__denormalize(k)
                     allData.add(name)
                     writeEntry=True
                     if selection:
@@ -220,12 +293,12 @@ class RunDatabase(object):
         if self.verbose:
             sep="\n    "
             if allData==writtenData:
-                print_("Added all data entries:",sep,sep.join(allData),sep="")
+                print_("Added all data entries:",sep,sep.join(sorted(allData)),sep="")
             else:
-                print_("Added parameters:",sep,sep.join(writtenData),
-                       "\nUnwritten data:",sep,sep.join(allData-writtenData),sep="")
+                print_("Added parameters:",sep,sep.join(sorted(writtenData)),
+                       "\nUnwritten data:",sep,sep.join(sorted(allData-writtenData)),sep="")
             if len(disabledStandard)>0:
-                print_("Disabled standard entries:",sep,sep.join(disabledStandard),sep="")
+                print_("Disabled standard entries:",sep,sep.join(sorted(disabledStandard)),sep="")
 
         f=file(pandasFormat)
         if excel:

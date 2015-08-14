@@ -6,96 +6,98 @@ Also hardcodes defaults for the settings"""
 from PyFoam.ThirdParty.six.moves import configparser
 from PyFoam.ThirdParty.six import iteritems,PY3
 
-from PyFoam.Infrastructure.Hardcoded import globalConfigFile,userConfigFile,globalDirectory,userDirectory,globalConfigDir,userConfigDir
+from PyFoam.Infrastructure.Hardcoded import globalConfigFile,userConfigFile,globalDirectory,userDirectory,globalConfigDir,userConfigDir,pyFoamSiteVar,siteConfigDir,siteConfigFile
 
-from os import path
+from os import path,environ
 import glob,re
 
 _defaults={
     "Network": {
-    "startServerPort"  : "18000",
-    "nrServerPorts"    : "100",
-    "portWait"         : "1.",
-    "socketTimeout"    : "1.",
-    "socketRetries"    : "10",
+        "startServerPort"  : "18000",
+        "nrServerPorts"    : "100",
+        "portWait"         : "1.",
+        "socketTimeout"    : "1.",
+        "socketRetries"    : "10",
     },
     "Metaserver": {
-    "port"             : "17999",
-    "ip"               : "192.168.1.11",
-    "checkerSleeping"  : "30.",
-    "searchServers"    : "192.168.1.0/24,192.168.0.0/24",
-    "webhost"          : "127.0.0.1:9000",
-    "doWebsync"        : "True",
-    "websyncInterval"  : "300.",
+        "port"             : "17999",
+        "ip"               : "192.168.1.11",
+        "checkerSleeping"  : "30.",
+        "searchServers"    : "192.168.1.0/24,192.168.0.0/24",
+        "webhost"          : "127.0.0.1:9000",
+        "doWebsync"        : "True",
+        "websyncInterval"  : "300.",
     },
     "IsAlive": {
-    "maxTimeStart"     : "30.",
-    "isLivingMargin"   : "1.1"
+        "maxTimeStart"     : "30.",
+        "isLivingMargin"   : "1.1"
     },
     "Logging": {
-    "default" : "INFO",
-    "server" : "INFO",
+        "default" : "INFO",
+        "server" : "INFO",
     },
     "OpenFOAM": {
-    "Forks" : 'openfoam,extend',
-    "DirPatterns-openfoam" : '"^OpenFOAM-([0-9]\.[0-9].*)$","^openfoam([0-9]+)$"',
-    "DirPatterns-extend" : '"^foam-extend-([0-9]\.[0-9].*)$"',
-    "Installation-openfoam" : "~/OpenFOAM",
-    "Installation-extend" : "~/foam",
-    "AdditionalInstallation-openfoam" : '"~/OpenFOAM"',
-    "Version" : "1.5",
+        "Forks" : 'openfoam,extend',
+        "DirPatterns-openfoam" : '"^OpenFOAM-([0-9]\.[0-9].*)$","^openfoam([0-9]+)$"',
+        "DirPatterns-extend" : '"^foam-extend-([0-9]\.[0-9].*)$"',
+        "Installation-openfoam" : "~/OpenFOAM",
+        "Installation-extend" : "~/foam",
+        "AdditionalInstallation-openfoam" : '"~/OpenFOAM"',
+        "Version" : "1.5",
     },
     "MPI": {
 #    "run_OPENMPI":"mpirun",
 #    "run_LAM":"mpirun",
-    "OpenMPI_add_prefix":"False",
-    "options_OPENMPI_pre": '["--mca","pls","rsh","--mca","pls_rsh_agent","rsh"]',
-    "options_OPENMPI_post":'["-x","PATH","-x","LD_LIBRARY_PATH","-x","WM_PROJECT_DIR","-x","PYTHONPATH","-x","FOAM_MPI_LIBBIN","-x","MPI_BUFFER_SIZE","-x","MPI_ARCH_PATH"]'
+        "OpenMPI_add_prefix":"False",
+        "options_OPENMPI_pre": '["--mca","pls","rsh","--mca","pls_rsh_agent","rsh"]',
+        "options_OPENMPI_post":'["-x","PATH","-x","LD_LIBRARY_PATH","-x","WM_PROJECT_DIR","-x","PYTHONPATH","-x","FOAM_MPI_LIBBIN","-x","MPI_BUFFER_SIZE","-x","MPI_ARCH_PATH"]'
     },
     "Paths": {
-    "python" : "/usr/bin/python",
-    "bash" : "/bin/bash",
-    "paraview" : "paraview",
+        "python" : "/usr/bin/python",
+        "bash" : "/bin/bash",
+        "paraview" : "paraview",
     },
     "ClusterJob": {
-    "useFoamMPI":'["1.5"]',
-    "path":"/opt/openmpi/bin",
-    "ldpath":"/opt/openmpi/lib",
-    "doAutoReconstruct":"True",
-    "useMachineFile":"True",
+        "useFoamMPI":'["1.5"]',
+        "path":"/opt/openmpi/bin",
+        "ldpath":"/opt/openmpi/lib",
+        "doAutoReconstruct":"True",
+        "useMachineFile":"True",
     },
     "Debug": {
 #    "ParallelExecution":"True",
     },
     "Execution":{
-    "controlDictRestoreWait":"60.",
+        "controlDictRestoreWait":"60.",
     },
     "CaseBuilder":{
-    "descriptionPath": eval('["'+path.curdir+'","'+path.join(userDirectory(),"caseBuilderDescriptions")+'","'+path.join(globalDirectory(),"caseBuilderDescriptions")+'"]'),
+        "descriptionPath": eval('["'+path.curdir+'","'+path.join(userDirectory(),"caseBuilderDescriptions")+'","'+path.join(globalDirectory(),"caseBuilderDescriptions")+'"]'),
     },
     "Formats":{
-    "error"       : "bold,red,standout",
-    "warning"     : "under",
-    "source"      : "red,bold",
-    "destination" : "blue,bold",
-    "difference"  : "green,back_black,bold",
-    "question"    : "green,standout",
-    "input"       : "cyan,under",
+        "error"       : "bold,red,standout",
+        "warning"     : "under",
+        "source"      : "red,bold",
+        "destination" : "blue,bold",
+        "difference"  : "green,back_black,bold",
+        "question"    : "green,standout",
+        "input"       : "cyan,under",
     },
     "CommandOptionDefaults":{
-    "sortListCases":"mtime",
+        "sortListCases":"mtime",
     },
     "Plotting":{
-    "preferredImplementation":"gnuplot",
+        "preferredImplementation":"gnuplot",
+        "gnuplotCommands":"set xzeroaxis linewidth 4;set grid xtics ytics back lw 0.5"
     },
     "OutfileCollection": {
-    "maximumOpenFiles":"100",
+        "maximumOpenFiles":"100",
     },
     "SolverOutput": {
-    "timeRegExp": "^(Time =|Iteration:) (.+)$",
+        "timeRegExp": "^(Time =|Iteration:) (.+)$",
+        "stripSpaces":False,
     },
     "Clearing": {
-    "additionalPatterns":"[]",
+        "additionalPatterns":"[]",
     },
     "postRunHook_WriteMySqlite" : {
         "enabled":False,
@@ -142,8 +144,17 @@ Full command: |-commandLine-|""",
     "PrepareCase" : {
         "MeshCreateScript":"meshCreate.sh",
         "CaseSetupScript":"caseSetup.sh",
+        "DefaultParameterFile":"default.parameters",
+        "AllowDerivedChanges":False,
     },
+    "Template" : {
+        "allowExecution"                : False,
+        "assignmentDebug"               : False,
+        "tolerantRender"                : False,
+        "expressionDelimiter"           : "|-",
+        "assignmentLineStart"           : "$$",
     }
+}
 
 class ConfigurationSectionProxy(object):
     """Wraps a Confguration so that the section automatically becomes the
@@ -220,9 +231,12 @@ class Configuration(configparser.ConfigParser):
         """Defines a search path for the configuration files as a pare of type/name
         pairs"""
         files=[("file",globalConfigFile()),
-               ("directory",globalConfigDir()),
-               ("file",userConfigFile()),
-               ("directory",userConfigDir())]
+               ("directory",globalConfigDir())]
+        if pyFoamSiteVar in environ:
+            files+=[("file",siteConfigFile()),
+                    ("directory",siteConfigDir())]
+        files+=[("file",userConfigFile()),
+                ("directory",userConfigDir())]
         return files
 
     def configFiles(self):
@@ -253,9 +267,9 @@ class Configuration(configparser.ConfigParser):
         """Dumps the contents in INI-Form
         @return: a string with the contents"""
         result=""
-        for section in self.sections():
+        for section in sorted(self.sections(),key=lambda x:x.lower()):
             result+="[%s]\n" % (section)
-            for key,value in self.items(section):
+            for key,value in sorted(self.items(section),key=lambda x:x[0].lower()):
                 result+="%s: %s\n" % (key,value)
             result+="\n"
 
@@ -339,7 +353,7 @@ class Configuration(configparser.ConfigParser):
 
         return re.compile(self.get(section,option).replace("%f%",floatRegExp))
 
-    def get(self,section,option,default=None):
+    def get(self,section,option,default=None,**kwargs):
         """Overrides the original implementation from ConfigParser
         @param section: the section
         @param option: the option
@@ -347,8 +361,9 @@ class Configuration(configparser.ConfigParser):
 
         try:
             return configparser.ConfigParser.get(self,
-                                    self.bestSection(section,option),
-                                    option)
+                                                 self.bestSection(section,option),
+                                                 option,
+                                                 **kwargs)
         except configparser.NoOptionError:
             if default!=None:
                 return default
