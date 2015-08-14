@@ -5,6 +5,7 @@ from __future__ import division
 import PyFoam.Basics.FoamFileGenerator
 
 from copy import deepcopy
+from collections import OrderedDict
 import math
 import re
 
@@ -382,7 +383,7 @@ class DictProxy(dict):
             dict.__setitem__(self,key,value)
         else:
             dict.__setitem__(self,key,value)
-        if key not in self._order or isRegex:
+        if key not in self._order:
             self._order.append(key)
 
     def __getitem__(self,key):
@@ -488,6 +489,7 @@ class DictProxy(dict):
         self._order.append(redir)
         redir.useAsRedirect()
         self._redirects.append(redir)
+
 
 class TupleProxy(list):
     """Enables Tuples to be manipulated"""
