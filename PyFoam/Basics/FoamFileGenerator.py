@@ -193,6 +193,8 @@ class FoamFileGenerator(object):
                     float(l)
                 except (ValueError,TypeError):
                     isFixedType=False
+        if len(lst) <= 2:
+            isFixedType = True
 
         if isFixedType:
             s+="("+" ".join(["%g"%v for v in lst])+")"
