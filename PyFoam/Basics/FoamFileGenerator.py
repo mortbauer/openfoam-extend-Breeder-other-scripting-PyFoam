@@ -197,7 +197,7 @@ class FoamFileGenerator(object):
             isFixedType = True
 
         if isFixedType:
-            s+="("+" ".join(["%g"%v for v in lst])+")"
+            s+="("+" ".join(["%s"%v for v in lst])+")"
         else:
             s+=(" "*indent)+str(theLen)+"\n"
             s+=(" "*indent)+"(\n"
