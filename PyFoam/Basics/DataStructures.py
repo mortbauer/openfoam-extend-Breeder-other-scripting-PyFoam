@@ -478,7 +478,7 @@ class DictProxy(dict):
     def __iter__(self):
         s=set()
         for k in self._order:
-            if k not in self._redirects and not self.isRegexp(k):
+            if k not in self._redirects:
                 s.add(k)
                 yield k
         for r in self._redirects:
