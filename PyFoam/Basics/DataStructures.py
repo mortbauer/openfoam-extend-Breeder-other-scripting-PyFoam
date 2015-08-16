@@ -467,7 +467,7 @@ class DictProxy(dict):
             self[k]=self.__enforceString(kwargs[k],toString)
 
     def keys(self):
-        result=[x for x in self._order if x not in self._redirects and not self.isRegexp(x)]
+        result=[x for x in self._order if x not in self._redirects]
         for r in self._redirects:
             for k in r.keys():
                 if not k in result:
